@@ -3,11 +3,7 @@
 set -eux
 
 TMP_DIR="$(mktemp -d)"
-TARGET_DIR=(
- "./service-kustomize/*/overlays/*"
- "./monitoring/*/overlays/*"
- "./service-mix/*/overlays/*"
-)
+TARGET_DIR="$INPUT_TARGET_DIR"
 MAX_DEPTH="${INPUT_MAX_DEPTH:-10}"  # Default to 2 if not specified
 DEBUG="${DEBUG:-true}"
 
