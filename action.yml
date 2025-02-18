@@ -17,10 +17,13 @@ inputs:
     description: "Token for GitHub authentication"
     required: true
     default: ${{ github.token }}
-  root_dir:
-    description: "Root directory for kustomize files"
-    required: false
-    default: "./kustomize"
+#  root_dir:
+#    description: "Root directory for kustomize files"
+#    required: false
+#    default: "./kustomize"
+  target_dir:
+    description: "Target directory for kustomize files"
+    required: true
   max_depth:
     description: "Maximum depth to search for kustomization files"
     required: false

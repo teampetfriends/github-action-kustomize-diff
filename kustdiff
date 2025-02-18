@@ -3,8 +3,12 @@
 set -eux
 
 TMP_DIR="$(mktemp -d)"
-ROOT_DIR="${INPUT_ROOT_DIR:-${1:-./kustomize}}"  # First check env var, then argument, then default
-MAX_DEPTH="${INPUT_MAX_DEPTH:-2}"  # Default to 2 if not specified
+TARGET_DIR=(
+ "./service-kustomize/*/overlays/*"
+ "./monitoring/*/overlays/*"
+ "./service-mix/*/overlays/*"
+)
+MAX_DEPTH="${INPUT_MAX_DEPTH:-10}"  # Default to 2 if not specified
 DEBUG="${DEBUG:-true}"
 
 function debug_log() {
@@ -13,12 +17,12 @@ function debug_log() {
   fi
 }
 
-function validate_root_dir() {
-  if [ ! -d "$ROOT_DIR" ]; then
-    echo "Error: Root directory '$ROOT_DIR' does not exist"
-    exit 1
-  fi
-}
+#function validate_target_dir() {
+#  if [ ! -d "$ROOT_DIR" ]; then
+#    echo "Error: Root directory '$ROOT_DIR' does not exist"
+#    exit 1
+#  fi
+#}
 
 function validate_max_depth() {
   if ! [[ "$MAX_DEPTH" =~ ^[0-9]+$ ]]; then
@@ -28,7 +32,18 @@ function validate_max_depth() {
 }
 
 function get_targets {
-  find "$ROOT_DIR" -maxdepth "$MAX_DEPTH" -name kustomization.yaml -exec dirname {} \;
+  path_command=""
+  for dir in "${TARGET_DIR[@]}"; do
+    if [ -n "$path_command" ]; then
+      path_command="$path_command -o"
+    fi
+    path_command="$path_command -path \"$dir\""
+  done
+
+  find_command="find . -maxdepth $MAX_DEPTH -name kustomization.yaml \\( $path_command \\) -exec dirname {} \\;"
+
+  # 명령어 실행
+  eval "$find_command"
 }
 
 function safe_dirname() {
@@ -46,7 +61,7 @@ function build {
   git checkout "$ref" --quiet
   mkdir -p "$TMP_DIR/$safe_ref"
   for envpath in $(get_targets); do
-    local relative_path="${envpath#$ROOT_DIR/}"
+    local relative_path="${envpath}"
     local safe_path=$(safe_filename "$relative_path")
     local output_file="$TMP_DIR/$safe_ref/${safe_path}.yaml"
     echo "Running kustomize for $envpath"
@@ -61,44 +76,44 @@ function build {
 
 function main {
   # Validate inputs before proceeding
-  validate_root_dir
+#  validate_root_dir
   validate_max_depth
 
-  git config --global --add safe.directory "$GITHUB_WORKSPACE"
+#  git config --global --add safe.directory "$GITHUB_WORKSPACE"
   local diff escaped_output output
-  build "$INPUT_HEAD_REF"
-  build "$INPUT_BASE_REF"
+  build "main"
+  build "main"
 
-  local safe_head_ref=$(safe_dirname "$INPUT_HEAD_REF")
-  local safe_base_ref=$(safe_dirname "$INPUT_BASE_REF")
-
-  set +e
-  diff=$(git diff --no-index "$TMP_DIR/$safe_base_ref" "$TMP_DIR/$safe_head_ref")
-
-  debug_log "Git diff output:"
-  debug_log "$diff"
-  debug_log "End of git diff output"
-  debug_log "------------------------------------"
-
-  if [[ -z "$diff" ]]; then
-    output="No differences found between $INPUT_BASE_REF and $INPUT_HEAD_REF"
-  else
-    # Just pass through the raw git diff output
-    output="$diff"
-  fi
-
-  escaped_output=${output//$'\n'/'%0A'}
-
-  if [ ${#escaped_output} -gt 65000 ]; then
-    escaped_output="Output is greater than 65000 characters, and therefore too large to print as a github comment."
-  fi
-
-  echo "::set-output name=diff::$escaped_output"
+#  local safe_head_ref=$(safe_dirname "$INPUT_HEAD_REF")
+#  local safe_base_ref=$(safe_dirname "$INPUT_BASE_REF")
+#
+#  set +e
+#  diff=$(git diff --no-index "$TMP_DIR/$safe_base_ref" "$TMP_DIR/$safe_head_ref")
+#
+#  debug_log "Git diff output:"
+#  debug_log "$diff"
+#  debug_log "End of git diff output"
+#  debug_log "------------------------------------"
+#
+#  if [[ -z "$diff" ]]; then
+#    output="No differences found between $INPUT_BASE_REF and $INPUT_HEAD_REF"
+#  else
+#    # Just pass through the raw git diff output
+#    output="$diff"
+#  fi
+#
+#  escaped_output=${output//$'\n'/'%0A'}
+#
+#  if [ ${#escaped_output} -gt 65000 ]; then
+#    escaped_output="Output is greater than 65000 characters, and therefore too large to print as a github comment."
+#  fi
+#
+#  echo "::set-output name=diff::$escaped_output"
 }
 
 # Print initial configuration
 echo "Configuration:"
-echo "ROOT_DIR: $ROOT_DIR"
+echo "TARGET_DIR: $TARGET_DIR"
 echo "MAX_DEPTH: $MAX_DEPTH"
 echo "DEBUG: $DEBUG"
 debug_log "Debug mode is enabled"
